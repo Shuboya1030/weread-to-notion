@@ -3,7 +3,7 @@
 import sys
 import time
 
-from weread import get_notebooks, get_all_book_data, CookieExpiredError
+from weread import get_shelf_books, get_all_book_data, CookieExpiredError
 from notion_sync import get_synced_books, create_book_page, append_new_notes
 from labeler import generate_labels
 
@@ -11,18 +11,18 @@ from labeler import generate_labels
 def main():
     print("🔄 开始同步微信读书笔记到 Notion...")
 
-    # 1. 从微信读书获取有笔记的书籍列表
+    # 1. 从微信读书获取书架上的所有书
     try:
-        notebooks = get_notebooks()
+        shelf_books = get_shelf_books()
     except CookieExpiredError as e:
         print(f"\n❌ {e}")
         print("请更新 WEREAD_COOKIE 环境变量（或 GitHub Secrets）后重试。")
         sys.exit(1)
 
-    print(f"📚 微信读书中有 {len(notebooks)} 本书包含笔记")
+    print(f"📚 微信读书书架上有 {len(shelf_books)} 本书")
 
-    if not notebooks:
-        print("没有需要同步的笔记，退出。")
+    if not shelf_books:
+        print("书架为空，退出。")
         return
 
     # 2. 从 Notion 获取已同步的书籍
@@ -34,8 +34,7 @@ def main():
     skipped_books = 0
 
     # 3. 逐本处理
-    for notebook in notebooks:
-        book = notebook.get("book", {})
+    for book in shelf_books:
         book_id = str(book.get("bookId", ""))
         title = book.get("title", "未知")
 
@@ -43,15 +42,22 @@ def main():
             continue
 
         try:
-            if book_id not in synced:
-                # 新书：获取全部数据 + AI 打标签 + 创建页面
-                print(f"\n📖 新书：{title}")
-                book_data = get_all_book_data(book_id)
+            # 获取该书的笔记数据
+            book_data = get_all_book_data(book_id)
+            bookmarks = book_data["bookmarks"]
+            reviews = book_data["reviews"]
+            total_notes = len(bookmarks) + len(reviews)
 
-                # AI 生成主题标签
+            # 没有笔记的书跳过
+            if total_notes == 0:
+                continue
+
+            if book_id not in synced:
+                # 新书：AI 打标签 + 创建页面
+                print(f"\n📖 新书：{title}")
+
                 sample_highlights = [
-                    bm.get("markText", "")
-                    for bm in book_data["bookmarks"][:10]
+                    bm.get("markText", "") for bm in bookmarks[:10]
                 ]
                 labels = generate_labels(
                     title=title,
@@ -63,31 +69,26 @@ def main():
                     print(f"   🏷️  标签：{', '.join(labels)}")
 
                 create_book_page(
-                    book_info={**book, **book_data["info"]},
-                    bookmarks=book_data["bookmarks"],
-                    reviews=book_data["reviews"],
+                    book_info=book,
+                    bookmarks=bookmarks,
+                    reviews=reviews,
                     chapters=book_data["chapters"],
                     labels=labels,
                 )
-                print(f"   ✅ 已创建（{len(book_data['bookmarks'])} 条划线，{len(book_data['reviews'])} 条想法）")
+                print(f"   ✅ 已创建（{len(bookmarks)} 条划线，{len(reviews)} 条想法）")
                 new_books += 1
 
             else:
                 # 已有书：检查是否有新笔记
                 existing = synced[book_id]
-                current_count = (
-                    notebook.get("bookmarkCount", 0)
-                    + notebook.get("reviewCount", 0)
-                )
-
-                if current_count > existing["note_count"]:
-                    print(f"\n📝 更新：{title}（新增 {current_count - existing['note_count']} 条笔记）")
-                    book_data = get_all_book_data(book_id)
+                if total_notes > existing["note_count"]:
+                    new_count = total_notes - existing["note_count"]
+                    print(f"\n📝 更新：{title}（新增 {new_count} 条笔记）")
 
                     added = append_new_notes(
                         page_id=existing["page_id"],
-                        bookmarks=book_data["bookmarks"],
-                        reviews=book_data["reviews"],
+                        bookmarks=bookmarks,
+                        reviews=reviews,
                         chapters=book_data["chapters"],
                         existing_note_count=existing["note_count"],
                     )

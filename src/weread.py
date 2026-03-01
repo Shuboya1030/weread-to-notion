@@ -1,4 +1,4 @@
-"""微信读书非官方 API 封装"""
+"""微信读书 API 封装（使用 weread.qq.com/web/ 接口）"""
 
 import requests
 
@@ -15,10 +15,7 @@ def _get(path: str, params: dict | None = None) -> dict:
     url = f"{WEREAD_BASE_URL}{path}"
     resp = requests.get(url, headers=WEREAD_HEADERS, params=params, allow_redirects=False)
 
-    print(f"  [DEBUG] {path} -> HTTP {resp.status_code}")
-
     if resp.status_code in (401, 302, 403):
-        print(f"  [DEBUG] Response: {resp.text[:500]}")
         raise CookieExpiredError(
             "微信读书 cookie 已过期！请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
         )
@@ -26,46 +23,43 @@ def _get(path: str, params: dict | None = None) -> dict:
     resp.raise_for_status()
     data = resp.json()
 
-    # 部分接口过期时返回 errCode 而非 HTTP 401
-    if isinstance(data, dict) and data.get("errCode"):
-        print(f"  [DEBUG] errCode={data.get('errCode')}, errMsg={data.get('errMsg', '')}")
+    if isinstance(data, dict) and data.get("errcode"):
         raise CookieExpiredError(
-            f"微信读书 API 错误（errCode={data['errCode']}）。请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
+            f"微信读书 API 错误（errcode={data['errcode']}）。请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
         )
 
     return data
 
 
-def get_notebooks() -> list[dict]:
-    """获取所有有笔记的书籍列表
+def get_shelf_books() -> list[dict]:
+    """获取书架上的所有书籍（含元数据）
 
-    返回格式：[{bookId, book: {title, author, cover, ...}, noteCount, reviewCount, ...}]
+    返回：[{bookId, title, author, cover, category, ...}]
     """
-    data = _get("/user/notebooks")
+    data = _get("/web/shelf/sync", params={"synckey": 0, "lectureSynckey": 0})
     return data.get("books", [])
 
 
 def get_book_info(book_id: str) -> dict:
-    """获取书籍元数据（书名、作者、封面、分类等）"""
-    return _get("/book/info", params={"bookId": book_id})
+    """获取书籍元数据"""
+    return _get("/web/book/info", params={"bookId": book_id})
 
 
-def get_bookmarks(book_id: str) -> list[dict]:
-    """获取指定书的所有划线（highlights）
+def get_bookmarks(book_id: str) -> tuple[list[dict], list[dict]]:
+    """获取指定书的划线和章节信息
 
-    返回格式：[{bookmarkId, chapterUid, chapterName, markText, createTime, ...}]
+    返回：(bookmarks, chapters)
     """
-    data = _get("/book/bookmarklist", params={"bookId": book_id})
-    return data.get("updated", [])
+    data = _get("/web/book/bookmarklist", params={"bookId": book_id})
+    bookmarks = data.get("updated", [])
+    chapters = data.get("chapters", [])
+    return bookmarks, chapters
 
 
 def get_reviews(book_id: str) -> list[dict]:
-    """获取指定书的所有想法/笔记（thoughts）
-
-    返回格式：[{reviewId, chapterUid, chapterName, content, createTime, ...}]
-    """
+    """获取指定书的想法/笔记"""
     data = _get(
-        "/review/list",
+        "/web/review/list",
         params={
             "bookId": book_id,
             "listType": 11,
@@ -76,28 +70,12 @@ def get_reviews(book_id: str) -> list[dict]:
     return data.get("reviews", [])
 
 
-def get_chapters(book_id: str) -> list[dict]:
-    """获取书籍章节结构
-
-    返回格式：[{chapterUid, chapterIdx, title, ...}]
-    """
-    data = _get("/book/chapterInfos", params={"bookIds": book_id})
-    # API 返回 {data: [{bookId, updated: [chapters]}]}
-    book_data = data.get("data", [])
-    if book_data:
-        return book_data[0].get("updated", [])
-    return []
-
-
 def get_all_book_data(book_id: str) -> dict:
-    """一次性获取一本书的所有数据：元数据 + 划线 + 想法 + 章节"""
-    info = get_book_info(book_id)
-    bookmarks = get_bookmarks(book_id)
+    """一次性获取一本书的所有笔记数据"""
+    bookmarks, chapters = get_bookmarks(book_id)
     reviews = get_reviews(book_id)
-    chapters = get_chapters(book_id)
 
     return {
-        "info": info,
         "bookmarks": bookmarks,
         "reviews": reviews,
         "chapters": chapters,

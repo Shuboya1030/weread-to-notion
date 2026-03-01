@@ -6,7 +6,7 @@ NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
-WEREAD_BASE_URL = "https://i.weread.qq.com"
+WEREAD_BASE_URL = "https://weread.qq.com"
 
 WEREAD_HEADERS = {
     "User-Agent": (
