@@ -23,9 +23,10 @@ def _get(path: str, params: dict | None = None) -> dict:
     resp.raise_for_status()
     data = resp.json()
 
-    if isinstance(data, dict) and data.get("errcode"):
+    if isinstance(data, dict) and (data.get("errcode") or data.get("errCode")):
+        err = data.get("errcode") or data.get("errCode")
         raise CookieExpiredError(
-            f"微信读书 API 错误（errcode={data['errcode']}）。请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
+            f"微信读书 API 错误（errCode={err}）。请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
         )
 
     return data
