@@ -13,9 +13,12 @@ class CookieExpiredError(Exception):
 def _get(path: str, params: dict | None = None) -> dict:
     """发送 GET 请求到微信读书 API，自动检测 cookie 过期"""
     url = f"{WEREAD_BASE_URL}{path}"
-    resp = requests.get(url, headers=WEREAD_HEADERS, params=params)
+    resp = requests.get(url, headers=WEREAD_HEADERS, params=params, allow_redirects=False)
 
-    if resp.status_code == 401 or resp.status_code == 302:
+    print(f"  [DEBUG] {path} -> HTTP {resp.status_code}")
+
+    if resp.status_code in (401, 302, 403):
+        print(f"  [DEBUG] Response: {resp.text[:500]}")
         raise CookieExpiredError(
             "微信读书 cookie 已过期！请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
         )
@@ -24,9 +27,10 @@ def _get(path: str, params: dict | None = None) -> dict:
     data = resp.json()
 
     # 部分接口过期时返回 errCode 而非 HTTP 401
-    if isinstance(data, dict) and data.get("errCode") == -2012:
+    if isinstance(data, dict) and data.get("errCode"):
+        print(f"  [DEBUG] errCode={data.get('errCode')}, errMsg={data.get('errMsg', '')}")
         raise CookieExpiredError(
-            "微信读书 cookie 已过期！请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
+            f"微信读书 API 错误（errCode={data['errCode']}）。请重新登录 https://weread.qq.com/ 并更新 WEREAD_COOKIE。"
         )
 
     return data
