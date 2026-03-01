@@ -69,7 +69,7 @@ def create_book_page(
 
     # 构建页面属性
     properties = {
-        "书名": {"title": [{"text": {"content": title}}]},
+        "Name": {"title": [{"text": {"content": title}}]},
         "作者": {"rich_text": [{"text": {"content": author}}]},
         "BookId": {"rich_text": [{"text": {"content": book_id}}]},
         "笔记数量": {"number": total_notes},
