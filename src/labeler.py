@@ -1,10 +1,10 @@
-"""AI 主题标签生成 — 使用 Claude API 为书籍自动分类"""
+"""AI 主题标签生成 — 使用 OpenAI API 为书籍自动分类"""
 
 import json
 
-import anthropic
+from openai import OpenAI
 
-from config import ANTHROPIC_API_KEY
+from config import OPENAI_API_KEY
 
 
 SYSTEM_PROMPT = """你是一个读书笔记分类助手。根据书籍信息和划线摘要，为这本书生成 2-5 个主题标签。
@@ -39,8 +39,7 @@ def generate_labels(
     Returns:
         标签列表，如 ["思维方式", "认知科学"]
     """
-    if not ANTHROPIC_API_KEY:
-        # 没有配置 API key 时跳过标签生成
+    if not OPENAI_API_KEY:
         return []
 
     highlights_text = "\n".join(
@@ -56,15 +55,17 @@ def generate_labels(
 
 请为这本书生成 2-5 个主题标签（JSON 数组）："""
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=200,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
     )
 
-    text = response.content[0].text.strip()
+    text = response.choices[0].message.content.strip()
 
     # 解析 JSON 数组
     try:

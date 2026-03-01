@@ -4,7 +4,7 @@ import os
 WEREAD_COOKIE = os.environ["WEREAD_COOKIE"]
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 WEREAD_BASE_URL = "https://i.weread.qq.com"
 
